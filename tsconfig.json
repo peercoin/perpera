@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "downlevelIteration": true,
+    "module": "commonjs",
+    "noEmitOnError": true,
+    "outDir": "dist",
+    "rootDirs": ["src", "gen"],
+    "lib": ["es2016", "webworker", "esnext.asynciterable"],
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "target": "es6"
+  },
+  "files": [
+    "src/index.ts",
+    "gen/protobuf.d.ts"
+  ],
+  "include": [],
+}

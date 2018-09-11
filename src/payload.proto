@@ -1,0 +1,23 @@
+
+syntax = "proto3";
+
+message TxPayload {
+  uint32 version                                            = 1;
+
+  enum Flags {
+    CONTENT_UPDATE      = 0x01;
+    OWNERSHIP_TRANSFER  = 0x02;
+  }
+  uint32 flags                                              = 2;
+
+  repeated bytes sha2                                       = 3;
+  repeated bytes sha3                                       = 4;
+
+  repeated string uri                                       = 5;
+  repeated string http                                      = 6;
+  repeated string https                                     = 7;
+  repeated bytes ipfs                                       = 8;
+  repeated bytes magnet_sha1                                = 9;
+  repeated bytes magnet_btih                                = 10;
+}
+
