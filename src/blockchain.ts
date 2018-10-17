@@ -5,6 +5,7 @@ import * as _ from 'lodash';
 import * as bitcore from 'bitcore-lib';
 export import Address = bitcore.Address;
 export import NetworkData = bitcore.Networks.Network;
+export import PrivateKey = bitcore.PrivateKey;
 export import Transaction = bitcore.Transaction;
 export import HashFn = bitcore.crypto.Hash;
 export import UnspentOutput = bitcore.Transaction.UnspentOutput;
@@ -18,6 +19,9 @@ export class Network {
   constructor(
     public readonly coin: Coin,
     public readonly data: NetworkData,
+    public readonly feePerKb: number,
+    public readonly minOutput: number,
+    public readonly p2thFee: number,
     public readonly testnet?: boolean
   ) {}
 
@@ -30,23 +34,27 @@ export class Network {
     return new Transaction(serialized);
   }
 
+  runThunk<T>(thunk: () => T): T {
+    return thunk();
+  }
+
   static find(data: NetworkData): Network|null {
     return _.find(net => matchNetwork(data, net.data)) || null;
   }
 }
 
 export let networks: {[name: string]: Network} = {
-  'bitcoin': new Network(Coin.Btc, bitcore.Networks.mainnet),
-  'bitcoin-testnet': new Network(Coin.Btc, bitcore.Networks.testnet, true)
+  'bitcoin': new Network(Coin.Btc, bitcore.Networks.mainnet, 1e5, 1e6, 1e6),
+  'bitcoin-testnet': new Network(Coin.Btc, bitcore.Networks.testnet, 1e5, 1e6, 1e6, true)
 };
 
 function matchNetwork(d1: any, d2: any): boolean {
-  return d1 == d2 ||
-    d1.pubkeyhash == d2.pubkeyhash &&
-    d1.privatekey == d2.privatekey &&
-    d1.scripthash == d2.scripthash &&
-    d1.xpubkey == d2.xpubkey &&
-    d1.xprivkey == d2.xprivkey;
+  return d1 === d2 ||
+    d1.pubkeyhash === d2.pubkeyhash &&
+    d1.privatekey === d2.privatekey &&
+    d1.scripthash === d2.scripthash &&
+    d1.xpubkey === d2.xpubkey &&
+    d1.xprivkey === d2.xprivkey;
 }
 
 //
@@ -104,9 +112,18 @@ class PpcNetwork extends Network {
   transaction(serialized?: Buffer): Transaction {
     return new PpcTransaction(serialized);
   }
+
+  runThunk<T>(thunk: () => T): T {
+    const txClass: any = Transaction;
+    const oldShallowCopy = txClass.shallowCopy;
+    txClass.shallowCopy = tx => new PpcTransaction(tx.toBuffer());
+    const result: T = thunk();
+    txClass.shallowCopy = oldShallowCopy;
+    return result;
+  }
 }
 
-networks['peercoin'] = new Network(Coin.Ppc, bitcore.Networks.add({
+networks['peercoin'] = new PpcNetwork(Coin.Ppc, bitcore.Networks.add({
   name: 'peercoin',
   alias: 'ppcoin',
   pubkeyhash: 0x37,
@@ -114,9 +131,9 @@ networks['peercoin'] = new Network(Coin.Ppc, bitcore.Networks.add({
   scripthash: 0x75,
   xpubkey: 0x0488b21e,
   xprivkey: 0x0488ade4,
-}));
+}), 1e4, 1e4, 1e4);
 
-networks['peercoin-testnet'] = new Network(Coin.Ppc, bitcore.Networks.add({
+networks['peercoin-testnet'] = new PpcNetwork(Coin.Ppc, bitcore.Networks.add({
   name: 'peercoin-testnet',
   alias: 'ppcoin-test',
   pubkeyhash: 0x6f,
@@ -124,5 +141,5 @@ networks['peercoin-testnet'] = new Network(Coin.Ppc, bitcore.Networks.add({
   scripthash: 0xc4,
   xpubkey: 0x043587cf,
   xprivkey: 0x04358394,
-}), true);
+}), 1e4, 1e4, 1e4, true);
 

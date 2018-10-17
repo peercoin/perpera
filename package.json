@@ -12,18 +12,17 @@
   "author": "Frano Perleta",
   "license": "MIT",
   "devDependencies": {
+    "@types/bitcore-lib": "^0.15.1",
+    "bitcore-lib": "^8.0.0",
+    "buffer": "^5.2.1",
+    "jake": "^8.0.18",
     "lodash": "^4.17.11",
+    "protobufjs": "~6.8.8",
     "typescript": "^3.0.3",
     "webpack": "^4.19.1",
     "webpack-cli": "^3.1.0"
   },
-  "dependencies": {
-    "@types/bitcore-lib": "^0.15.1",
-    "bitcore-lib": "^0.15.0",
-    "buffer": "^5.2.1",
-    "jake": "^8.0.18",
-    "protobufjs": "~6.8.8"
-  },
+  "dependencies": {},
   "files": [
     "dist/*"
   ]

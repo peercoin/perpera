@@ -2,11 +2,13 @@
 import { Buffer } from 'buffer';
 import * as bitcore from 'bitcore-lib';
 
-import { Address, Network, Transaction } from './blockchain';
+import { Address, Network, Transaction, UnspentOutput } from './blockchain';
 import { RawOrHex, Driver, match as matchDriver } from './driver';
 import { Parser } from './parser';
 import { TxPayload } from './protobuf';
-import { Hash, State, Transition } from './model';
+import { Hash, Hashes, State, Transition } from './model';
+import { Spender } from './spender';
+import { contentUpdate, uriAdd } from './update';
 
 interface Tx {
   raw: Buffer;
@@ -18,6 +20,17 @@ interface Block {
   hash: Buffer;
   height: number;
   txids: string[];
+}
+
+export type HexHashes = {[h in Hash]?: Buffer|string};
+
+function normalizeHashes(hash: HexHashes): Hashes {
+  const result: Hashes = {};
+  for (const h in hash) {
+    const v = hash[h];
+    result[h] = v instanceof Buffer? v : Buffer.from(v, 'hex');
+  }
+  return result;
 }
 
 export class Document {
@@ -126,7 +139,7 @@ export class Document {
     return blocks;
   }
 
-  private async performLoad(): Promise<void> {
+  private async performSync(): Promise<void> {
     const parser = new Parser(this.tagHash, this.network);
 
     const blocks = await this.loadBlocks();
@@ -142,37 +155,111 @@ export class Document {
     this.transitions = parser.finish();
   }
 
-  private loadInProgress = false;
-  private loadQueue: {resolve: () => void, reject: (any) => void}[] = [];
+  private syncInProgress = false;
+  private syncQueue: {resolve: () => void, reject: (any) => void}[] = [];
 
-  async load(): Promise<void> {
-    if (this.loadInProgress) {
+  async sync(): Promise<void> {
+    if (this.syncInProgress) {
       return new Promise<void>((resolve, reject) => {
-        this.loadQueue.push({resolve: resolve, reject: reject});
+        this.syncQueue.push({resolve: resolve, reject: reject});
       });
     }
 
-    this.loadInProgress = true;
-    return this.performLoad().then(() => {
-      this.loadInProgress = false;
-      for (let { resolve } of this.loadQueue) {
-        resolve();
-      }
-      this.loadQueue = [];
+    this.syncInProgress = true;
+    return this.performSync().then(() => {
+      this.syncInProgress = false;
+      for (const { resolve } of this.syncQueue) resolve();
+      this.syncQueue = [];
     }, (reason) => {
-      this.loadInProgress = false;
-      for (let { reject } of this.loadQueue) {
-        reject(reason);
-      }
-      this.loadQueue = [];
+      this.syncInProgress = false;
+      for (const { reject } of this.syncQueue) reject(reason);
+      this.syncQueue = [];
     });
   }
 
   currentOwner(): string|null {
     const ts = this.transitions;
-    if (ts.length == 0) return null;
+    if (ts.length === 0) return null;
     const last = ts[ts.length - 1];
     return last.nextOwner || last.state.owner;
+  }
+
+  async updateContent(hash: HexHashes, spender: Spender): Promise<void> {
+    const owner = this.currentOwner();
+    if (owner && owner !== spender.address.toString())
+      throw new Error('The given spender is not the current owner.');
+
+    const payloads = contentUpdate(normalizeHashes(hash));
+
+    const txs: Transaction[] = [];
+    for (const payload of payloads) {
+      const tx = this.network.transaction();
+      tx.feePerKb(this.network.feePerKb);
+
+      const utxos = spender.allocate(this.network.p2thFee + this.network.minOutput);
+      if (utxos === null) throw new Error('Insufficient funds.');
+      tx.from(utxos!);
+
+      this.network.runThunk(() => {
+        const data = Buffer.from(TxPayload.encode(payload).finish());
+        tx.to(this.address, this.network.p2thFee)
+          .addData(data)
+          .change(spender.address)
+          .sign(spender.privateKey);
+      });
+
+      const change = tx.getChangeOutput()!;
+
+      const rawTx = (tx as any).toBuffer();
+      const txId = await this.driver.sendRawTransaction(rawTx);
+
+      spender.push(new UnspentOutput({
+        txId: txId instanceof Buffer? txId.toString('hex') : txId,
+        outputIndex: 2,
+        scriptPubKey: change.script,
+        satoshis: change.satoshis,
+        address: spender.address
+      }));
+    }
+  }
+
+  async addUri(uri: string, spender: Spender): Promise<void> {
+    const owner = this.currentOwner();
+    if (!owner)
+      throw new Error('URIs may only be added after the initial content.');
+    else if (owner !== spender.address.toString())
+      throw new Error('The given spender is not the current owner.');
+
+    const tx = this.network.transaction();
+    tx.feePerKb(this.network.feePerKb);
+
+    const utxos = spender.allocate(this.network.p2thFee + this.network.minOutput);
+    if (utxos === null) throw new Error('Insufficient funds.');
+    tx.from(utxos!);
+
+    const data = Buffer.from(TxPayload.encode(uriAdd(uri)).finish());
+    if (data.length >= 80)
+      throw new Error('URI too long for OP_RETURN payload.');
+
+    this.network.runThunk(() => {
+      tx.to(this.address, this.network.p2thFee)
+        .addData(data)
+        .change(spender.address)
+        .sign(spender.privateKey);
+    });
+
+    const change = tx.getChangeOutput()!;
+
+    const rawTx = (tx as any).toBuffer();
+    const txId = await this.driver.sendRawTransaction(rawTx);
+
+    spender.push(new UnspentOutput({
+      txId: txId instanceof Buffer? txId.toString('hex') : txId,
+      outputIndex: 2,
+      scriptPubKey: change.script,
+      satoshis: change.satoshis,
+      address: spender.address
+    }));
   }
 }
 

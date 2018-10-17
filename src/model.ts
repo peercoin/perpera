@@ -4,6 +4,8 @@ import { Address } from './blockchain';
 
 export type Hash = 'sha2-256' | 'sha2-512' | 'sha3-256' | 'sha3-512';
 
+export type Hashes = {[h in Hash]?: Buffer};
+
 export interface State {
   readonly time: Date;
   readonly owner: string;

@@ -1,4 +1,7 @@
 
+import { Buffer } from 'buffer';
+export { Buffer };
+
 export * from './blockchain';
 
 export * from './document';
@@ -11,4 +14,7 @@ export { drivers };
 
 import * as protobuf from './protobuf';
 export { protobuf };
+
+import { Spender } from './spender';
+export { Spender };
 

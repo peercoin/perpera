@@ -3,10 +3,8 @@ import { Buffer } from 'buffer';
 import { encode as encodeBase58 } from 'bs58';
 
 import { Address, HashFn, Network, Transaction } from './blockchain';
-import { Hash, State, Transition } from './model';
+import { Hash, Hashes, State, Transition } from './model';
 import { TxPayload } from './protobuf';
-
-type Hashes = {[h in Hash]?: Buffer};
 
 type Mut<T> = {
   -readonly [P in keyof T]: T[P];
@@ -151,8 +149,8 @@ export class Parser {
     if (payload.sha2) {
       for (const sha2 of payload.sha2) {
         const buf = Buffer.from(sha2);
-        const ok = ((buf.length == 32) && this.addHash('sha2-256', buf)) ||
-          ((buf.length == 64) && this.addHash('sha2-512', buf));
+        const ok = ((buf.length === 32) && this.addHash('sha2-256', buf)) ||
+          ((buf.length === 64) && this.addHash('sha2-512', buf));
         if (!ok) return false;
       }
     }
@@ -160,8 +158,8 @@ export class Parser {
     if (payload.sha3) {
       for (const sha3 of payload.sha3) {
         const buf = Buffer.from(sha3);
-        const ok = ((buf.length == 32) && this.addHash('sha3-256', buf)) ||
-          ((buf.length == 64) && this.addHash('sha3-512', buf));
+        const ok = ((buf.length === 32) && this.addHash('sha3-256', buf)) ||
+          ((buf.length === 64) && this.addHash('sha3-512', buf));
         if (!ok) return false;
       }
     }
@@ -199,7 +197,7 @@ export class Parser {
   }
 
   feed(txid: string, tx: Transaction, time: Date): boolean {
-    if (this.feed_inner) {
+    if (this.feed_inner(tx)) {
       this.commit(txid, time);
       return true;
     } else {

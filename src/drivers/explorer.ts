@@ -48,10 +48,10 @@ export class Driver implements driver.Driver {
     };
   }
 
-  async sendRawTransaction(tx: Buffer): Promise<Buffer> {
+  async sendRawTransaction(tx: Buffer): Promise<string> {
     const hex = tx.toString('hex');
     const data = await this.fetchString(`api/sendrawtransaction?hex=${hex}`);
-    return Buffer.from(data, 'hex');
+    return data;
   }
 
   async getBlock(hash: Buffer): Promise<driver.BlockData> {
@@ -73,32 +73,12 @@ export class Driver implements driver.Driver {
         vout: utxo.tx_ouput_n,
         address: address,
         script: utxo.script,
-        satoshis: utxo.value
+        satoshis: Math.floor(utxo.value / 100)
       }));
     }
+    utxos.reverse();
     return utxos;
   }
-
-    /*
-
-  async getBlockCount(): Promise<number> {
-    const data = await this.fetchJson('api/getblockcount');
-    if (typeof(data) === "number") {
-      return data;
-    } else {
-      throw "invalid response";
-    }
-  }
-
-  getBlockHash(index: number): Promise<string> {
-    return this.fetchString(`api/getblockhash?index=${index}`);
-  }
-
-  async getBlock(hash: string): Promise<Block> {
-    const data = await this.fetchJson(`api/getblock?hash=${hash}`);
-    return data;
-  }
-     */
 }
 
 driver.add((network: Network): Driver|null => {
