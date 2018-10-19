@@ -70,6 +70,12 @@ export class Parser {
       },
       txids: this.txids
     };
+
+    if (this.uris.length !== 0) {
+      t.uris = this.uris;
+      this.uris = [];
+    }
+
     this.time = null;
     this.txids = [];
 
@@ -166,29 +172,29 @@ export class Parser {
 
     if (contentUpdate && this.dhashSize === 0) return false;
 
-    for (const uri in payload.uri) {
+    for (const uri of payload.uri) {
       this.duris.push(uri);
     }
 
-    for (const http in payload.http) {
+    for (const http of payload.http) {
       this.duris.push(`http://${http}`);
     }
 
-    for (const https in payload.https) {
+    for (const https of payload.https) {
       this.duris.push(`http://${https}`);
     }
 
-    for (const ipfs in payload.ipfs) {
+    for (const ipfs of payload.ipfs) {
       const base58 = encodeBase58(ipfs);
       this.duris.push(`ipfs://${base58}`);
     }
 
-    for (const msha1 in payload.magnetSha1) {
+    for (const msha1 of payload.magnetSha1) {
       const hex = Buffer.from(msha1).toString('hex');
       this.duris.push(`magnet:?xt=urn:sha1:${hex}`);
     }
 
-    for (const mbtih in payload.magnetBtih) {
+    for (const mbtih of payload.magnetBtih) {
       const hex = Buffer.from(mbtih).toString('hex');
       this.duris.push(`magnet:?xt=urn:btih:${hex}`);
     }
