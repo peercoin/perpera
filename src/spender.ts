@@ -77,5 +77,9 @@ export class Spender {
 
     return this.unspent.splice(index, count);
   }
+
+  unallocate(outputs: UnspentOutput[]) {
+    this.unspent.push.apply(this.unspent, outputs);
+  }
 }
 

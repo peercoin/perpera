@@ -38,6 +38,10 @@ export class Network {
     return thunk();
   }
 
+  getFee(txSize: number): number {
+    return Math.ceil(txSize / 1000) * this.feePerKb;
+  }
+
   static find(data: NetworkData): Network|null {
     return _.find(net => matchNetwork(data, net.data)) || null;
   }
@@ -47,6 +51,8 @@ export let networks: {[name: string]: Network} = {
   'bitcoin': new Network(Coin.Btc, bitcore.Networks.mainnet, 1e5, 1e6, 1e6),
   'bitcoin-testnet': new Network(Coin.Btc, bitcore.Networks.testnet, 1e5, 1e6, 1e6, true)
 };
+
+bitcore.Networks.remove(bitcore.Networks.testnet);
 
 function matchNetwork(d1: any, d2: any): boolean {
   return d1 === d2 ||
@@ -64,7 +70,10 @@ class PpcTransaction extends Transaction {
     let t: any = this;
 
     writer.writeUInt32LE(t.version);
-    writer.writeUInt32LE(t.timestamp || new Date().getTime()/1000);
+    if (typeof t.timestamp != "number") {
+      t.timestamp = Math.floor(Date.now() / 1000);
+    }
+    writer.writeUInt32LE(t.timestamp);
 
     writer.writeVarintNum(t.inputs.length);
     for (let input of t.inputs) {
@@ -120,6 +129,16 @@ class PpcNetwork extends Network {
     const result: T = thunk();
     txClass.shallowCopy = oldShallowCopy;
     return result;
+  }
+
+  getFee(txSize: number): number {
+    const now = Math.floor(Date.now() / 1000);
+    const v07 = now >= (this.testnet? 1541505600 : 1552392000);
+    if (v07) {
+      return Math.max(1000, Math.floor(txSize * this.feePerKb / 1000));
+    } else {
+      return (1 + Math.floor(txSize / 1000)) * this.feePerKb;
+    }
   }
 }
 

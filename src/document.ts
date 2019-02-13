@@ -184,82 +184,125 @@ export class Document {
     return last.nextOwner || last.state.owner;
   }
 
-  async updateContent(hash: HexHashes, spender: Spender): Promise<void> {
+  considerUpdatingContent(hash: HexHashes, spender: Spender): Update {
     const owner = this.currentOwner();
     if (owner && owner !== spender.address.toString())
       throw new Error('The given spender is not the current owner.');
 
+    const update = new Update(this, spender);
     const payloads = contentUpdate(normalizeHashes(hash));
-
-    const txs: Transaction[] = [];
-    for (const payload of payloads) {
-      const tx = this.network.transaction();
-      tx.feePerKb(this.network.feePerKb);
-
-      const utxos = spender.allocate(this.network.p2thFee + this.network.minOutput);
-      if (utxos === null) throw new Error('Insufficient funds.');
-      tx.from(utxos!);
-
-      this.network.runThunk(() => {
-        const data = Buffer.from(TxPayload.encode(payload).finish());
-        tx.to(this.address, this.network.p2thFee)
-          .addData(data)
-          .change(spender.address)
-          .sign(spender.privateKey);
-      });
-
-      const change = tx.getChangeOutput()!;
-
-      const rawTx = (tx as any).toBuffer();
-      const txId = await this.driver.sendRawTransaction(rawTx);
-
-      spender.push(new UnspentOutput({
-        txId: txId instanceof Buffer? txId.toString('hex') : txId,
-        outputIndex: 2,
-        scriptPubKey: change.script,
-        satoshis: change.satoshis,
-        address: spender.address
-      }));
-    }
+    for (const payload of payloads) update.add(payload);
+    return update;
   }
 
-  async addUri(uri: string, spender: Spender): Promise<void> {
+  updateContent(hash: HexHashes, spender: Spender): Promise<void> {
+    return this.considerUpdatingContent(hash, spender).commit();
+  }
+
+  considerAddingUri(uri: string, spender: Spender): Update {
     const owner = this.currentOwner();
     if (!owner)
       throw new Error('URIs may only be added after the initial content.');
-    else if (owner !== spender.address.toString())
+    if (owner && owner !== spender.address.toString())
       throw new Error('The given spender is not the current owner.');
 
-    const tx = this.network.transaction();
-    tx.feePerKb(this.network.feePerKb);
+    const update = new Update(this, spender);
+    const payload = uriAdd(uri);
+    update.add(payload);
+    return update;
+  }
 
-    const utxos = spender.allocate(this.network.p2thFee + this.network.minOutput);
-    if (utxos === null) throw new Error('Insufficient funds.');
-    tx.from(utxos!);
+  addUri(uri: string, spender: Spender): Promise<void> {
+    return this.considerAddingUri(uri, spender).commit();
+  }
+}
 
-    const data = Buffer.from(TxPayload.encode(uriAdd(uri)).finish());
-    if (data.length >= 80)
-      throw new Error('URI too long for OP_RETURN payload.');
+export class Update {
+  private queue: Transaction[];
+  private undo: UnspentOutput[];
+  private prev: UnspentOutput|null;
+  private totalFee: number;
 
-    this.network.runThunk(() => {
-      tx.to(this.address, this.network.p2thFee)
+  constructor(public readonly document: Document, public readonly spender: Spender) {
+    this.reset();
+  }
+
+  getFee(): number {
+    return this.totalFee;
+  }
+
+  reset() {
+    this.queue = [];
+    this.undo = [];
+    this.prev = null;
+    this.totalFee = 0;
+  }
+
+  add(payload: TxPayload) {
+    const data = Buffer.from(TxPayload.encode(payload).finish());
+
+    const network = this.spender.network;
+    const tx = network.transaction();
+    network.runThunk(() => {
+      tx.to(this.document.address, network.p2thFee)
         .addData(data)
-        .change(spender.address)
-        .sign(spender.privateKey);
+        .to(this.spender.address, network.minOutput);
+
+      let balance = -(network.p2thFee + network.minOutput);
+
+      if (this.prev instanceof UnspentOutput) {
+        tx.from([this.prev]);
+        balance += this.prev.satoshis;
+        this.prev = null;
+      }
+
+      while (true) {
+        tx.sign(this.spender.privateKey);
+        const txSize = (tx as any).toBuffer().length;
+        const fee = network.getFee(txSize);
+
+        if (balance >= fee) {
+          tx.fee(fee); // lol
+          this.totalFee += network.p2thFee + fee;
+          (tx as any).removeOutput(2);
+          tx.change(this.spender.address);
+          const change = tx.outputs[2];
+          tx.sign(this.spender.privateKey);
+          this.queue.push(tx);
+          this.prev = new UnspentOutput({
+            txId: tx.hash,
+            outputIndex: 2,
+            scriptPubKey: change.script,
+            satoshis: change.satoshis,
+            address: this.spender.address
+          });
+          return;
+        }
+
+        const utxos = this.spender.allocate(fee - balance);
+        if (utxos === null) throw new Error('Insufficient funds.');
+        this.undo.unshift.apply(this.undo, utxos);
+        tx.from(utxos!);
+        for (const utxo of utxos) balance += utxo.satoshis;
+      }
     });
+  }
 
-    const change = tx.getChangeOutput()!;
+  async commit() {
+    for (const tx of this.queue) {
+      const rawTx = (tx as any).toBuffer();
+      const txId = await this.spender.driver.sendRawTransaction(rawTx);
+      // TODO: maybe check that txid matches what we calculated?
+    }
+    if (this.prev instanceof UnspentOutput) {
+      this.spender.push(this.prev);
+    }
+    this.reset();
+  }
 
-    const rawTx = (tx as any).toBuffer();
-    const txId = await this.driver.sendRawTransaction(rawTx);
-
-    spender.push(new UnspentOutput({
-      txId: txId instanceof Buffer? txId.toString('hex') : txId,
-      outputIndex: 2,
-      scriptPubKey: change.script,
-      satoshis: change.satoshis,
-      address: spender.address
-    }));
+  abort() {
+    this.spender.unallocate(this.undo);
+    this.reset();
   }
 }
 
