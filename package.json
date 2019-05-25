@@ -1,6 +1,6 @@
 {
   "name": "perpera",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "PeerAssets data audit protocol library",
   "main": "dist/index.js",
   "scripts": {
