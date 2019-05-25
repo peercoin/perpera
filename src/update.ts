@@ -28,7 +28,8 @@ const hashFields: {[h in Hash]: HashField} = {
   'sha3-512': { bytes: 64, push: pushSha3 }
 };
 
-const maxPayloadSize: number = 80;
+// maxPayLoad for Peercoin v0.7 is 256 bytes
+const maxPayloadSize: number = 256;
 
 export function contentUpdate(hash: Hashes): TxPayload[] {
   const payloads: TxPayload[] = [];
