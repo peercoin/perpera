@@ -71,7 +71,7 @@ export class BlockBookDriver implements driver.Driver {
         txid: utxo.txid,
         vout: utxo.vout,
         address: address,
-        script: tx.vout[0].scriptPubKey.hex,
+        script: tx.vout[utxo.vout].scriptPubKey.hex,
         satoshis: Math.floor(utxo.satoshis / 100)
       }));
     }
