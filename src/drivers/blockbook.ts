@@ -72,10 +72,9 @@ export class BlockBookDriver implements driver.Driver {
         vout: utxo.vout,
         address: address,
         script: tx.vout[0].scriptPubKey,
-        satoshis: utxo.satoshis
+        satoshis: Math.floor(utxo.satoshis / 100)
       }));
     }
-    utxos.reverse();
     return utxos;
   }
 }
