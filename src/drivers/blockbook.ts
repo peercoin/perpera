@@ -42,10 +42,14 @@ export class BlockBookDriver implements driver.Driver {
     };
   }
   
-  async sendRawTransaction(tx: Buffer): Promise<string> {
+  async sendRawTransaction(tx: Buffer): Promise<driver.TxId> {
     const hex = tx.toString('hex');
     const data = await this.fetchJson(`api/sendtx/${hex}`);
-    return data.result;
+    if (typeof data === 'object' && data.result !== undefined) {
+      return data.result;
+    }
+
+    return data.error;
   }
 
   async getBlock(hash: Buffer): Promise<driver.BlockData> {
@@ -71,7 +75,7 @@ export class BlockBookDriver implements driver.Driver {
         txid: utxo.txid,
         vout: utxo.vout,
         address: address,
-        script: tx.vout[0].scriptPubKey.hex,
+        script: tx.vout[utxo.vout].scriptPubKey.hex,
         satoshis: Math.floor(utxo.satoshis / 100)
       }));
     }
