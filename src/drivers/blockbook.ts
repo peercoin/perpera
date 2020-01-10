@@ -8,7 +8,7 @@ export class BlockBookDriver implements driver.Driver {
   private readonly url: string;
 
   constructor(public readonly network: Network, prefix?: string) {
-    this.url = `https://tblockbook.peercoin.net`;
+    this.url = `https://${prefix||''}blockbook.peercoin.net`;
   }
 
   private async fetch(href: string): Promise<Response> {
@@ -82,7 +82,10 @@ export class BlockBookDriver implements driver.Driver {
 
 driver.add((network: Network): BlockBookDriver|null => {
   if (network.coin === Coin.Ppc) {
-    return new BlockBookDriver(network);
+    if (network.testnet)
+      return new BlockBookDriver(network, 't');
+    else
+      return new BlockBookDriver(network);
   }
   return null;
 })
