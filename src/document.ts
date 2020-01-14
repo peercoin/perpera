@@ -215,6 +215,10 @@ export class Document {
   addUri(uri: string, spender: Spender): Promise<TxId> {
     return this.considerAddingUri(uri, spender).commit();
   }
+
+  getRawTransaction(hash: HexHashes, spender: Spender): RawOrHex {
+    return this.considerUpdatingContent(hash, spender).getRawTransaction();
+  }
 }
 
 export class Update {
@@ -301,6 +305,15 @@ export class Update {
     this.reset();
 
     return retTxId;
+  }
+
+  getRawTransaction(): RawOrHex {
+    let rawTx: RawOrHex = "";
+    for (const tx of this.queue) {
+      rawTx = (tx as any).toBuffer().toString('hex');
+    }
+    
+    return rawTx;
   }
 
   abort() {
