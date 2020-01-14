@@ -305,6 +305,7 @@ export class Update {
     this.reset();
 
     return retTxId;
+<<<<<<< HEAD
   }
 
   getRawTransaction(): RawOrHex {
@@ -314,6 +315,8 @@ export class Update {
     }
     
     return rawTx;
+=======
+>>>>>>> perpera/master
   }
 
   abort() {
