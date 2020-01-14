@@ -3,7 +3,7 @@ import { Buffer } from 'buffer';
 import * as bitcore from 'bitcore-lib';
 
 import { Address, Network, Transaction, UnspentOutput } from './blockchain';
-import { RawOrHex, Driver, match as matchDriver } from './driver';
+import { RawOrHex, TxId, Driver, match as matchDriver } from './driver';
 import { Parser } from './parser';
 import { TxPayload } from './protobuf';
 import { Hash, Hashes, State, Transition } from './model';
@@ -195,7 +195,7 @@ export class Document {
     return update;
   }
 
-  updateContent(hash: HexHashes, spender: Spender): Promise<void> {
+  updateContent(hash: HexHashes, spender: Spender): Promise<TxId> {
     return this.considerUpdatingContent(hash, spender).commit();
   }
 
@@ -212,8 +212,12 @@ export class Document {
     return update;
   }
 
-  addUri(uri: string, spender: Spender): Promise<void> {
+  addUri(uri: string, spender: Spender): Promise<TxId> {
     return this.considerAddingUri(uri, spender).commit();
+  }
+
+  getRawTransaction(hash: HexHashes, spender: Spender): RawOrHex {
+    return this.considerUpdatingContent(hash, spender).getRawTransaction();
   }
 }
 
@@ -288,16 +292,28 @@ export class Update {
     });
   }
 
-  async commit() {
+  async commit(): Promise<TxId> {
+    let retTxId: TxId = "";
     for (const tx of this.queue) {
       const rawTx = (tx as any).toBuffer();
-      const txId = await this.spender.driver.sendRawTransaction(rawTx);
+      retTxId = await this.spender.driver.sendRawTransaction(rawTx);
       // TODO: maybe check that txid matches what we calculated?
     }
     if (this.prev instanceof UnspentOutput) {
       this.spender.push(this.prev);
     }
     this.reset();
+
+    return retTxId;
+  }
+
+  getRawTransaction(): RawOrHex {
+    let rawTx: RawOrHex = "";
+    for (const tx of this.queue) {
+      rawTx = (tx as any).toBuffer().toString('hex');
+    }
+    
+    return rawTx;
   }
 
   abort() {
