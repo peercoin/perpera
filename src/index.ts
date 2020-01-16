@@ -18,3 +18,5 @@ export { protobuf };
 import { Spender } from './spender';
 export { Spender };
 
+import AppPpc from './ledger/Ppc';
+export { AppPpc };
