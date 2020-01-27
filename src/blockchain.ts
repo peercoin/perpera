@@ -53,6 +53,7 @@ export let networks: {[name: string]: Network} = {
 };
 
 bitcore.Networks.remove(bitcore.Networks.testnet);
+bitcore.Networks.remove(bitcore.Networks.get('regtest', ""));
 
 function matchNetwork(d1: any, d2: any): boolean {
   return d1 === d2 ||
