@@ -23,6 +23,18 @@ export class BlockBookDriver implements driver.Driver {
     return this.fetch(href).then((response) => response.json());
   }
 
+  private async fetch_post(href: string, data: string): Promise<Response> {
+    const response = await fetch(`${this.url}/${href}`, {method: 'post', body: data});
+    if (!response.ok) {
+      throw new Error(`${response.status} ${response.statusText}`);
+    }
+    return response;
+  }
+
+  private fetchJson_post(href: string, data: string): Promise<any> {
+    return this.fetch_post(href, data).then((response) => response.json());
+  }
+
   async *taggedTransactions(tag: Address): AsyncIterable<driver.TxId> {
     const data = await this.fetchJson(`api/address/${tag.toString()}`);
     if (typeof data === 'object' && data.transactions instanceof Array) {
@@ -44,7 +56,7 @@ export class BlockBookDriver implements driver.Driver {
   
   async sendRawTransaction(tx: Buffer): Promise<driver.TxId> {
     const hex = tx.toString('hex');
-    const data = await this.fetchJson(`api/sendtx/${hex}`);
+    const data = await this.fetchJson_post(`api/sendtx/`, hex);
     if (typeof data === 'object' && data.result !== undefined) {
       return data.result;
     }
