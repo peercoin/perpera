@@ -133,13 +133,7 @@ class PpcNetwork extends Network {
   }
 
   getFee(txSize: number): number {
-    const now = Math.floor(Date.now() / 1000);
-    const v07 = now >= (this.testnet? 1541505600 : 1552392000);
-    if (v07) {
       return Math.max(1000, Math.floor(txSize * this.feePerKb / 1000));
-    } else {
-      return (1 + Math.floor(txSize / 1000)) * this.feePerKb;
-    }
   }
 }
 
